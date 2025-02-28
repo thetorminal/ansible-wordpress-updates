@@ -8,7 +8,7 @@ For each step (major, plugin and theme updates) it will print the available upda
 WP-CLI is used to run the updates.  
 
 Example:  
-
+![ansible-wordpress](https://github.com/user-attachments/assets/965a020d-8ae6-4c41-adba-a146d7fc90a5)
 
 Tested with:    
 * Debian 12 Server  
