@@ -1,0 +1,130 @@
+---
+
+# GET WP INSTALLATIONS  -----------------------
+    - name: Find all WordPress installations by searching for file wp-config.php in /var/www
+      find:
+        paths: /var/www/
+        pattern: "wp-config.php"
+        recurse: yes
+        follow: yes 
+      register: wp_configs
+
+    - name: Extract WordPress root directories
+      set_fact:
+        wp_path: "{{ wp_configs.files | map(attribute='path') | select('search', '/var/www/.*/web/wp-config.php') | map('dirname') | list }}"
+
+    - name: Display found WordPress installations
+      debug:
+        msg: "{{ wp_path }}"
+
+# CORE UPDATES --------------------------------
+    - name: Check available core updates for WordPress
+      shell: |
+         echo -n ""{{ item }}: "" && wp core check-update --quiet --format=csv --fields=version | awk -F, 'NR>1 {printf "%s, ", $1} END {print "\n"}'
+      loop: "{{ wp_path }}"
+      register: wp_core_updates
+      changed_when: no
+      become_user: www-data
+      args:
+        chdir: "{{ item }}"
+
+    - name: Display found WordPress Core Updates 
+      debug:
+        msg: "{{ wp_core_updates.results | map(attribute='stdout') }}"
+
+    - pause:
+        prompt: Please confirm you want to run the core updates! Press return to continue. Press CTRL+C and then "a" to abort
+
+    - name: Create a directory if it does not exist
+      ansible.builtin.file:
+        path: /var/www/update-backups/
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: 755
+
+    - name: Remove old Backups
+      shell: |
+        rm -rf /var/www/update-backups/*
+
+    - name: Backup database
+      shell: |
+        wp db export
+        mv *.sql /var/www/update-backups/
+      loop: "{{ wp_path }}"
+      become_user: www-data
+      args:
+        chdir: "{{ item }}"
+
+    - name: Update WordPress Core (Major version)
+      command: "wp core update"
+      loop: "{{ wp_path }}"
+      become_user: www-data
+      args:
+        chdir: "{{ item }}"
+
+    - name: Update WordPress Database
+      command: "wp core update-db"
+      loop: "{{ wp_path }}"
+      become_user: www-data
+      args:
+        chdir: "{{ item }}"
+
+    - name: Update WordPress Language Core
+      command: "wp language core update"
+      loop: "{{ wp_path }}"
+      become_user: www-data
+      args:
+        chdir: "{{ item }}"
+
+# PLUGIN UPDATES --------------------------------
+    - name: Check available plugin updates for WordPress
+      shell: |
+         echo -n ""{{ item }}: "" && wp plugin list --update=available --format=csv --fields=name | awk -F, 'NR>1 {printf "%s, ", $1} END {printf "\n"}' 
+      loop: "{{ wp_path }}"
+      register: wp_plugin_updates
+      changed_when: no
+      become_user: www-data
+      args:
+        chdir: "{{ item }}" 
+
+    - name: Display found WordPress plugin updates
+      debug:
+        msg: "{{ wp_plugin_updates.results | map(attribute='stdout') }}"
+
+    - pause:
+        prompt: Please confirm you want to run the plugin updates! Press return to continue. Press CTRL+C and then "a" to abort
+
+    - name: Update WordPress plugins
+      command: "wp plugin update --all"
+      loop: "{{ wp_path }}"
+      become_user: www-data
+      ignore_errors: yes
+      args:
+        chdir: "{{ item }}"
+
+# THEME UPDATES --------------------------------
+    - name: Check available theme updates for WordPress
+      shell: |
+         echo -n ""{{ item }}: "" && wp theme list --update=available --format=csv --fields=name | awk -F, 'NR>1 {printf "%s, ", $1} END {print ""}'
+      loop: "{{ wp_path }}"
+      register: wp_theme_updates
+      changed_when: no
+      become_user: www-data
+      args:
+        chdir: "{{ item }}"
+
+    - name: Display found WordPress theme updates
+      debug:
+        msg: "{{ wp_theme_updates.results | map(attribute='stdout') }}"
+
+    - pause:
+        prompt: Please confirm you want to run the theme updates! Press return to continue. Press CTRL+C and then "a" to abort
+
+    - name: Update WordPress themes
+      command: "wp theme update --all"
+      loop: "{{ wp_path }}"
+      become_user: www-data
+      ignore_errors: yes
+      args:
+        chdir: "{{ item }}"
