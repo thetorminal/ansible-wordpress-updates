@@ -1,0 +1,10 @@
+---
+# Wordpress updates for multiple installations
+# Core, plugin and theme updates
+# https://github.com/thetorminal/ansible-wordpress-updates
+
+- hosts: webserver 
+  become: true
+  serial: 1
+  roles: 
+    - wp_update 
